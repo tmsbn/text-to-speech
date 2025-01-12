@@ -71,8 +71,15 @@ client = OpenAI()
 
 for file_name in recent_files:
 
-    speech_file_path = Path(__file__).parent / output_folder_name / (file_name.split('.')[0] + ".mp3")
+    speech_file_output_folder = Path(__file__).parent / output_folder_name
+
+    # create output folder if doesn't exist
+    Path(speech_file_output_folder).mkdir(parents=True, exist_ok=True)
+
+    speech_file_path = speech_file_output_folder / (file_name.split('.')[0] + ".mp3")
     input_file_path = Path(__file__).parent / input_folder_name / file_name
+
+
 
     # Read the input text from the file
     print('Generating voice for input:', input_file_path)

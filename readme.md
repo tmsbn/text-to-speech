@@ -9,3 +9,5 @@ This simple project uses OpenAI text-to-speech API to convert contents of a text
 3. Go to OpenAI and generate a API_KEY and set it to your environment variable
 4. Run audio_generator.py from the desktop.
 5. For each text file in `text` folder, an mp3 file will be generated in the `audio` folder
+
+Note: the program will only execute the code for files in the `text` folder if the last modified file of the file is less than 1 minute.
