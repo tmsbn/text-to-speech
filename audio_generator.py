@@ -1,6 +1,14 @@
 from pathlib import Path
 from openai import OpenAI
 import datetime, os, json
+from enum import Enum
+from elevenlabs import VoiceSettings
+from elevenlabs.client import ElevenLabs
+
+class API_TYPE(Enum):
+    OPEN_AI = 1
+    ELEVEN_LABS = 2
+
 
 
 def filter_files_by_modified_time(file_list, folder, minutes=1):
@@ -61,40 +69,98 @@ input_folder_name = 'text'
 output_folder_name = 'audio'
 config_file_path = "config.json"
 
-files = get_file_names_from_folder(input_folder_name)
-print('input files:', files)
 
-recent_files = filter_files_by_modified_time(files, input_folder_name)
-print('recently modified input files:', recent_files)
+def generate_response_with_openai(config_data, input_file_path:str, speech_file_path:str):
+      
+      client = OpenAI()
+      # Read the input text from the file
+      print('Generating voice for input:', input_file_path)
+      with open(input_file_path, "r") as f:
+          input_text = f.read()
 
-client = OpenAI()
+          # Generate response using openAI
+          response = client.audio.speech.create(
+              model=config_data.get("model"),
+              voice=config_data.get("voice"),
+              speed=config_data.get("speed"),
+              input=input_text)
+          response.write_to_file(speech_file_path)
+      print('Output written to file path:', speech_file_path)
 
-for file_name in recent_files:
-
-    speech_file_output_folder = Path(__file__).parent / output_folder_name
-
-    # create output folder if doesn't exist
-    Path(speech_file_output_folder).mkdir(parents=True, exist_ok=True)
-
-    speech_file_path = speech_file_output_folder / (file_name.split('.')[0] + ".mp3")
-    input_file_path = Path(__file__).parent / input_folder_name / file_name
-
-
+   
+def generate_response_with_eleven_labs(config_data, input_file_path:str,  speech_file_path:str):
+    
+    ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
+    print('elevenLabs API key', ELEVENLABS_API_KEY)
+    client = ElevenLabs(
+        api_key=ELEVENLABS_API_KEY,
+    )
 
     # Read the input text from the file
     print('Generating voice for input:', input_file_path)
     with open(input_file_path, "r") as f:
         input_text = f.read()
-        with open(config_file_path, 'r') as f:
-            config_data = json.load(f)
-            response = client.audio.speech.create(
-                model=config_data.get("model"),
-                voice=config_data.get("voice"),
-                input=input_text,
+
+        response = client.text_to_speech.convert(
+          voice_id="8Es4wFxsDlHBmFWAOWRS", # William Shanks
+          output_format="mp3_22050_32",
+          text=input_text,
+          model_id="eleven_turbo_v2_5", # Low Latency
+          voice_settings=VoiceSettings(
+              stability=0.0,
+              similarity_boost=1.0,
+              style=0.0,
+              use_speaker_boost=True,
+          ),
         )
-        response.write_to_file(speech_file_path)
+
+        # Writing the audio to a file
+        with open(speech_file_path, "wb") as f:
+            for chunk in response:
+                if chunk:
+                    f.write(chunk)
         print('Output written to file path:', speech_file_path)
 
+with open(config_file_path, 'r') as f:
+    
+    config_data = json.load(f)
+
+    api_type = None
+    if "api" in config_data and config_data.get("api") == "elevenlabs":
+       api_type = API_TYPE.ELEVEN_LABS
+    else:
+       api_type = API_TYPE.OPEN_AI
+
+    print('API type', api_type)   
+
+    files = get_file_names_from_folder(input_folder_name)
+    print('input files:', files)
+    recent_files = None
+
+    print('config', config_data)
+
+
+    # Decide to process all files or just the recently modified files
+    if "process_all" in config_data and config_data["process_all"]:
+      recent_files = files
+    else:
+      recent_files = filter_files_by_modified_time(files, input_folder_name)
+    print('recently modified input files:', recent_files)
+
+    for file_name in recent_files:
+
+        speech_file_output_folder = Path(__file__).parent / output_folder_name
+
+        # create output folder if doesn't exist
+        Path(speech_file_output_folder).mkdir(parents=True, exist_ok=True)
+
+        speech_file_path = speech_file_output_folder / (file_name.split('.')[0] + ".mp3")
+        input_file_path = Path(__file__).parent / input_folder_name / file_name
+
+        if api_type == API_TYPE.OPEN_AI:
+          generate_response_with_openai(config_data, input_file_path, speech_file_path)
+        else:
+          generate_response_with_eleven_labs(config_data, input_file_path, speech_file_path)
 
 
 
